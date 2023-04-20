@@ -1,11 +1,11 @@
 &control    
 
-start_date="2019-01-01",       !%Y-%m-%d (YYYY-MM-DD)
-  end_date="2019-01-01",       !%Y-%m-%d (YYYY-MM-DD)
+start_date="2019-01-01",   !%Y-%m-%d (YYYY-MM-DD)
+  end_date="2019-01-01",   !%Y-%m-%d (YYYY-MM-DD)
 
-finn_data_directory = '../finn_data/'
+finn_data_directory = './finn_data/'
 
-griddesc_directory="./GRIDDESC", !path al GRIDDESC
+griddesc_directory="./example_GRIDDESC", !path al GRIDDESC
 
 chemistry="GEOSchem",
 

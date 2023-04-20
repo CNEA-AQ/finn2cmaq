@@ -31,13 +31,15 @@ program finn2cmaq
   logical :: file_exists
   
   !character(256) :: command
-  character(256) :: outFile,inpFile,griddesc_directory,finn_data_directory,finnFile
+  character(256) :: griddesc_directory,finn_data_directory,finnFile,outFile
   character(16)  :: chemistry, pollut
-  character(17), allocatable :: var_list(:),var_units(:) !lista de polluts
+  character(17), allocatable :: var_list(:), var_units(:) !lista de polluts
+  character(800) :: var_list_string
   integer :: nvars
+  
   !finnFile:
-  character(len=512) :: header, line
-  character(10) :: hvars(6)                   !columnames de finnFile
+  character(len=512) :: header!, line
+  character(10)      :: colnames(6)           !columnames de finnFile
   integer            :: day,time,genveg       !vars de finnFile
   real               :: lati,longi,area       !vars de finnFile
   real, allocatable  :: emis(:)               !emision de cada fila de finnFile.
@@ -47,8 +49,6 @@ program finn2cmaq
   real   , allocatable  :: data(:,:,:,:,:)    !buffer donde meter la grilla con valores de emision [nt,nz,nx,ny,nvars]
   integer, allocatable  :: tflag(:,:,:)       !buffer donde meter los valores de TFLAG [nt,nvars,2]
 
-  real, dimension(:,:,:,:), allocatable :: output
-  real, dimension(:,:), allocatable :: input
   real, dimension(24) :: diurnal_cycle
 
   character(len=17) :: start_date, end_date
@@ -107,8 +107,10 @@ program finn2cmaq
        allocate(var_list(nvars))
        allocate(var_units(nvars))
        allocate(emis(nvars))
-       read(header,*) hvars,var_list
+       read(header,*) colnames,var_list
        
+       write(var_list_string,*) var_list
+
        allocate(data(grid%nx,grid%ny,1,1,nvars))        !Asigno memoria a grilla con emisiones
        allocate(tflag(2,nvars,1))                       !Asigno memoria a tflag
        data=0.0
@@ -159,39 +161,39 @@ program finn2cmaq
             call check(nf90_def_dim(ncid, "LAY"      ,   1    , lay_dim_id      )) 
             call check(nf90_def_dim(ncid, "VAR"      , nvars  , var_dim_id      )) 
             !! Defino attributos
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "IOAPI_VERSION", "ioapi-3.2: \$Id: init3" ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "EXEC_ID"      , "???????????????? "      ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "FTYPE"        , 1                        ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "SDATE"        , YYYY//DDD                ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "STIME"        , 000000                   ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "WDATE"        , 2023001                  ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "WTIME"        , 000000                   ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "CDATE"        , 2023001                  ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "CTIME"        , 000000                   ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "TSTEP"        , 10000                    ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "NTHIK"        , 1                        ))   
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "NCOLS"        , grid%nx                  ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "NROWS"        , grid%ny                  ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "NLAYS"        , grid%nz                  ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "NVARS"        , nvars                    ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "GDTYP"        , grid%typ                 ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "P_ALP"        , "-50."                   ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "P_BET"        , "-20."                   ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "P_GAM"        , "-65."                   ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "XCENT"        , proj%ref_lon             ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "YCENT"        , proj%ref_lat             ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "XORIG"        , grid%xmin                ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "YORIG"        , grid%ymin                ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "XCELL"        , grid%dx                  ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "YCELL"        , grid%dy                  ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "VGTYP"        , "-9999"                  ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "VGTOP"        , "5000.f"                 ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "VGLVLS"       , "1.f, 0.9938147f"        ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "GDNAM"        , grid%gName               ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "UPNAM"        , "OUTCM3IO"               ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "VAR-LIST"     , var_list                 ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "FILEDESC"     , "Merged emissions output file from Mrggrid" ))
-            !call check(nf90_put_att(ncid, "NF_GLOBAL", "HISTORY"      , ""                       ))
+            call check(nf90_put_att(ncid, nf90_global,"IOAPI_VERSION", "ioapi-3.2: \$Id: init3" ))
+            call check(nf90_put_att(ncid, nf90_global,"EXEC_ID"      , "????????????????"   ))
+            call check(nf90_put_att(ncid, nf90_global,"FTYPE"        , 1                    ))
+            call check(nf90_put_att(ncid, nf90_global,"SDATE"        , YYYY//DDD            ))
+            call check(nf90_put_att(ncid, nf90_global,"STIME"        , 000000               ))
+            call check(nf90_put_att(ncid, nf90_global,"WDATE"        , 2023001              ))
+            call check(nf90_put_att(ncid, nf90_global,"WTIME"        , 000000               ))
+            call check(nf90_put_att(ncid, nf90_global,"CDATE"        , 2023001              ))
+            call check(nf90_put_att(ncid, nf90_global,"CTIME"        , 000000               ))
+            call check(nf90_put_att(ncid, nf90_global,"TSTEP"        , 10000                ))
+            call check(nf90_put_att(ncid, nf90_global,"NTHIK"        , 1                    ))   
+            call check(nf90_put_att(ncid, nf90_global,"NCOLS"        , grid%nx              ))
+            call check(nf90_put_att(ncid, nf90_global,"NROWS"        , grid%ny              ))
+            call check(nf90_put_att(ncid, nf90_global,"NLAYS"        , grid%nz              ))
+            call check(nf90_put_att(ncid, nf90_global,"NVARS"        , nvars                ))
+            call check(nf90_put_att(ncid, nf90_global,"GDTYP"        , 1                    ))
+            call check(nf90_put_att(ncid, nf90_global,"P_ALP"        , "-50."               ))
+            call check(nf90_put_att(ncid, nf90_global,"P_BET"        , "-20."               ))
+            call check(nf90_put_att(ncid, nf90_global,"P_GAM"        , "-65."               ))
+            call check(nf90_put_att(ncid, nf90_global,"XCENT"        , proj%ref_lon         ))
+            call check(nf90_put_att(ncid, nf90_global,"YCENT"        , proj%ref_lat         ))
+            call check(nf90_put_att(ncid, nf90_global,"XORIG"        , grid%xmin            ))
+            call check(nf90_put_att(ncid, nf90_global,"YORIG"        , grid%ymin            ))
+            call check(nf90_put_att(ncid, nf90_global,"XCELL"        , grid%dx              ))
+            call check(nf90_put_att(ncid, nf90_global,"YCELL"        , grid%dy              ))
+            call check(nf90_put_att(ncid, nf90_global,"VGTYP"        , "-9999"              ))
+            call check(nf90_put_att(ncid, nf90_global,"VGTOP"        , "5000.f"             ))
+            call check(nf90_put_att(ncid, nf90_global,"VGLVLS"       , "1.f, 0.9938147f"    ))
+            call check(nf90_put_att(ncid, nf90_global,"GDNAM"        , grid%gName           ))
+            call check(nf90_put_att(ncid, nf90_global,"UPNAM"        , "OUTCM3IO"           ))
+            call check(nf90_put_att(ncid, nf90_global,"VAR-LIST"     ,trim(var_list_string) ))
+            call check(nf90_put_att(ncid, nf90_global,"FILEDESC"     , "Fire emission file" ))
+            call check(nf90_put_att(ncid, nf90_global,"HISTORY"      , ""                   ))
         !Defino variables
         do k=1, nvars             
           pollut=var_list(k) 
@@ -252,6 +254,7 @@ contains
    call system( trim(command) )
    !print*,trim(command)
    open(9, file='tmp_date.txt', status='old',action='read'); read(9, '(A)', iostat=status) output;  close(9)
+   call system('rm tmp_date.txt')
  end function
 
  function atoi(str)     !string -> int
@@ -333,6 +336,7 @@ contains
         call system(trim(command))
         !print*,trim(command)
         open(9, file='tmp_gdal.txt', status='old',action='read'); read(9,*, iostat=status) x2, y2, ellipsoidh;  close(9)
+        call system('rm tmp_gdal.txt')
  end subroutine
 
 end program finn2cmaq
