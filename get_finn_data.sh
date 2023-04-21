@@ -2,8 +2,8 @@
 export LC_NUMERIC="en_US.UTF-8"
 #------------------------------------------------
 #Input-Data:
-start_date="2019-01-01"	#"%Y-%m-%d %H"
-  end_date="2019-01-01"	#"%Y-%m-%d %H"
+start_date="2022-10-19"	#"%Y-%m-%d %H"
+  end_date="2022-10-20"	#"%Y-%m-%d %H"
 
 chemistry="GEOSchem" #GEOSchem # MOZ4 # SAPRC99
 
