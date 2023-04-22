@@ -5,7 +5,7 @@
 ## Dependencies
  - Fortran GNU compiler.
  - NetCDF library.
- - GDAL/OGR (for coordinate transformations. This dependency will be removed in the future)
+ - GDAL/OGR: for coordinate transformations. (This dependency will be removed in the near future)
 
 ## Get FINN data
 
@@ -22,7 +22,6 @@ Edit the Makefile to set the compiler and path to NetCDF lib and include files. 
 If the compilation is successful, the executable `finn2cmaq.exe` should be created.
 
 ## Run
-`> cd run `
 
 Edit the 'example.inp' that contains the following variables:
 
@@ -39,7 +38,15 @@ Edit the 'example.inp' that contains the following variables:
 Note that the start_date, end_date, finn_data_directory, and griddesc_path variables must be adjusted to match the appropriate values for your system.
 
 Then execute finn2cmaq:
+
 `> finn2cmaq.exe < example.inp` 
 
-
 Please feel free to contact the developer if you have any issues or suggestions.
+
+## Planned future improvements:
+ + [ ] Support more types of projections 
+ + [ ] Remove GDAL/OGR dependency
+ + [ ] Roboust GRIDDESC reader 
+ + [ ] Optional species mapping
+ + [ ] Plume rise representation
+

@@ -91,14 +91,15 @@ program finn2cmaq
     
     !Descargo finn file:
     !if ( .not. file_exists) then
-    !          if ( atoi(YYYY) < todays_date(1)-2 ) then
-    !                    command="wget https://www.acom.ucar.edu/acresp/MODELING/finn_emis_txt/"//YYYY//"/GLOB_"//trim(chemistry)//"_"//YYYY//DDD//".txt.gz -P finn_data/"
-    !                   call system(command)
-    !           else
-    !                   command="wget https://www.acom.ucar.edu/acresp/MODELING/finn_emis_txt/GLOB_"//trim(chemistry)//"_"//YYYY//DDD//".txt.gz -P finn_data/"
-    !                   call system(command)
-    !           end if
-    !           call system ("gzip -d finn_data/GLOB_"//trim(chemistry)//"_"//YYYY//DDD//".txt.gz")
+    !  if ( atoi(YYYY) < todays_date(1)-2 ) then
+    !     command="wget https://www.acom.ucar.edu/acresp/MODELING/finn_emis_txt/"//YYYY//"/GLOB_"//trim(chemistry)//"_"//YYYY//DDD//".txt.gz -P finn_data/"
+    !     call system(command)
+    !  else
+    !     command="wget https://www.acom.ucar.edu/acresp/MODELING/finn_emis_txt/GLOB_"//trim(chemistry)//"_"//YYYY//DDD//".txt.gz -P finn_data/"
+    !     call system(command)
+    !  end if
+    !  call system ("gzip -d finn_data/GLOB_"//trim(chemistry)//"_"//YYYY//DDD//".txt.gz")
+    !  inquire(file=finnFile, exist=file_exists)
     !end if
 
     if ( file_exists ) then
@@ -108,17 +109,17 @@ program finn2cmaq
        open(1,file=finnFile, status='old', action='read')
           read(1,'(A)') header                                                  !Aca asumo que FinnFile header es siempre:
           nvars = COUNT((/ (header(i:i) == ',', i=1,len(header)) /)) - 6 + 1    !DAY,TIME,GENVEG,LATI,LONGI,AREA,CO2,CO,...,PM25
-          allocate(var_list(nvars))
-          allocate(var_units(nvars))
-          allocate(emis(nvars))
-          read(header,*) colnames,var_list
-          
-          write(var_list_string,*) var_list
-   
-          allocate(data(grid%nx,grid%ny,1,24,nvars))        !Asigno memoria a grilla con emisiones
-          allocate(tflag(2,nvars,24))                       !Asigno memoria a tflag
+
+          allocate(var_list(nvars))                         !array con nombre de polluts
+          allocate(emis(nvars))                             !array con emisiones de los polluts
+          allocate(var_units(nvars))                        !array con unidades de emisiones
+          allocate(data(grid%nx,grid%ny,1,24,nvars))        !grilla de emisiones
+          allocate(tflag(2,nvars,24))                       !variable tflag
           data=0.0
-   
+
+          read(header,*) colnames,var_list
+          write(var_list_string,*) var_list                !este es un global attr importante.
+
           iostat=0
           do while(iostat == 0)  !loop por cada fila de finnFile:
               read(1,*,iostat=iostat) day,time,genveg,lati,longi,area,emis
@@ -142,15 +143,12 @@ program finn2cmaq
                         endif
 
                         do h=1,24
-                            
                             write(HH, '(I0.2)') h-1
                                        
                             tflag(1,:,h) = atoi(YYYY//DDD) 
                             tflag(2,:,h) = atoi(HH//"0000")
                         
                             data(ii,ij,1,h,k) = data(ii,ij,1,h,k) + emis(k)*diurnal_cycle(h)
-
-
                          enddo
 
                 enddo
@@ -163,7 +161,7 @@ program finn2cmaq
        print*," Creating NetCDF file: ",trim(outFile)
        ! Create the NetCDF file                                                                                          
        call check(nf90_create(outFile, NF90_CLOBBER, ncid))
-           ! Defino dimensiones
+           !! Defino dimensiones
            call check(nf90_def_dim(ncid, "TSTEP"    ,   24   , tstep_dim_id    )) 
            call check(nf90_def_dim(ncid, "DATE_TIME",   2    , date_time_dim_id)) 
            call check(nf90_def_dim(ncid, "COL"      , grid%nx, col_dim_id      )) 
@@ -187,30 +185,28 @@ program finn2cmaq
            call check(nf90_put_att(ncid, nf90_global,"NLAYS"    , 1                    ))!grid%nz              
            call check(nf90_put_att(ncid, nf90_global,"NVARS"    , nvars                ))
            call check(nf90_put_att(ncid, nf90_global,"GDTYP"    , 1                    ))
-           call check(nf90_put_att(ncid, nf90_global,"P_ALP"    , -50.                 ))
-           call check(nf90_put_att(ncid, nf90_global,"P_BET"    , -20.                 ))
-           call check(nf90_put_att(ncid, nf90_global,"P_GAM"    , -65.                 ))
+           call check(nf90_put_att(ncid, nf90_global,"P_ALP"    , -50.                 ))!averiguar que poner
+           call check(nf90_put_att(ncid, nf90_global,"P_BET"    , -20.                 ))!averiguar que poner
+           call check(nf90_put_att(ncid, nf90_global,"P_GAM"    , -65.                 ))!averiguar que poner
            call check(nf90_put_att(ncid, nf90_global,"XCENT"    , proj%ref_lon         ))
            call check(nf90_put_att(ncid, nf90_global,"YCENT"    , proj%ref_lat         ))
            call check(nf90_put_att(ncid, nf90_global,"XORIG"    , grid%xmin            ))
            call check(nf90_put_att(ncid, nf90_global,"YORIG"    , grid%ymin            ))
            call check(nf90_put_att(ncid, nf90_global,"XCELL"    , grid%dx              ))
            call check(nf90_put_att(ncid, nf90_global,"YCELL"    , grid%dy              ))
-           call check(nf90_put_att(ncid, nf90_global,"VGTYP"    , -9999                ))
-           call check(nf90_put_att(ncid, nf90_global,"VGTOP"    , 5000.                ))
-           call check(nf90_put_att(ncid, nf90_global,"VGLVLS"   , [1., 0.9938147 ]     ))
+           call check(nf90_put_att(ncid, nf90_global,"VGTYP"    , -9999                ))!averiguar que poner
+           call check(nf90_put_att(ncid, nf90_global,"VGTOP"    , 5000.                ))!averiguar que poner
+           call check(nf90_put_att(ncid, nf90_global,"VGLVLS"   , [1., 0.9938147 ]     ))!averiguar que poner
            call check(nf90_put_att(ncid, nf90_global,"GDNAM"    , grid%gName           ))
-           call check(nf90_put_att(ncid, nf90_global,"UPNAM"    , "OUTCM3IO"           ))
+           call check(nf90_put_att(ncid, nf90_global,"UPNAM"    , "OUTCM3IO"           ))!averiguar que poner
            call check(nf90_put_att_any(ncid, nf90_global,"VAR-LIST",nf90_char, nvars*16, adjustl(var_list_string))) 
            call check(nf90_put_att(ncid, nf90_global,"FILEDESC" , "Fire emission file" ))
            call check(nf90_put_att(ncid, nf90_global,"HISTORY"  , ""                   ))
-       
-           !Defino variables
+           !!Defino variables
            call check(nf90_def_var(ncid,"TFLAG"       ,NF90_FLOAT    , [date_time_dim_id,var_dim_id,tstep_dim_id], pollut_var_id))
            call check(nf90_put_att(ncid, pollut_var_id, "units"      , "<YYYYDDD,HHMMSS>" ))
            call check(nf90_put_att(ncid, pollut_var_id, "long_name"  , "TFLAG           " ))
            call check(nf90_put_att(ncid, pollut_var_id, "var_desc"   , "Timestep-valid flags:  (1) YYYYDDD or (2) HHMMSS                                "))
-      
            do k=1, nvars             
              pollut=var_list(k) 
              att_var_desc=trim(pollut)//"[1]"
@@ -247,10 +243,9 @@ program finn2cmaq
     current_date_s=current_date_s + 86400  !siguiente día!
   end do
 
-print*, "================================="
-print*, "finn2cmaq: Completed successfully"
-print*, "================================="
-
+print*, "==================================="
+print*, " finn2cmaq: Completed successfully "
+print*, "==================================="
 contains
 
  subroutine check(status)
@@ -301,7 +296,7 @@ contains
         type(proj_type) ,intent(inout) :: p                                                      
         type(grid_type) ,intent(inout) :: g
         character(10) :: dummyvar
-        open(2,file=griddescFile, status='old', action='read')                                  !GRIDDESC:
+        open(2,file=griddescFile, status='old', action='read')                   !GRIDDESC:
            read(2,*) dummyvar;                                                   !' '
            read(2,*) p%pName;                                                    !projName
            read(2,*) p%typ,p%truelat1,p%truelat2,p%stand_lon,p%ref_lon,p%ref_lat !map_proj truelat1 truelat2 stand_lon ref_lon ref_lat
@@ -316,19 +311,19 @@ contains
         else if ( p%typ == 2 ) then     !Lambert Conformal Conic:
                 p%typ_str='lcc';  p%proj4="+proj=lcc +lat_1="//trim(rtoa(p%truelat1))//" +lat_2="//trim(rtoa(p%truelat2))//" +lon_0="//trim(rtoa(p%stand_lon))//" +lat_0="//trim(rtoa(p%ref_lat))//" +a=6370000.0 +b=6370000.0 +units=m"
         else if ( p%typ == 3 ) then     !General Mercator
-                p%typ_str="merc"; p%proj4="+proj=merc +lat_ts=${truelat1} +a=6370000.0 +b=6370000.0"
+                p%typ_str="merc"; p%proj4="+proj=merc +lat_ts="//trim(rtoa(p%truelat1))//" +a=6370000.0 +b=6370000.0"
         else if ( p%typ == 4 ) then     !General tangent Stereografic
-                p%typ_str='stere';p%proj4="+proj=stere +lat_0=${ref_lat} +lon_0=${stand_lon} +lat_ts=lat_ts +a=6370000.0 +b=6370000.0 +k_0=1.0"
+                p%typ_str='stere';p%proj4="+proj=stere +lat_0="//trim(rtoa(p%ref_lat))//" +lon_0="//trim(rtoa(p%stand_lon))//" +lat_ts=lat_ts +a=6370000.0 +b=6370000.0 +k_0=1.0"
         else if ( p%typ == 5 ) then     !UTM
-                p%typ_str='utm';  p%proj4="+proj=utm +zone="  
+                print*, "proyección: 5 (Universal Transverse Mercator) no soportada en esta aplicación."; stop
         else if ( p%typ == 6 ) then     !Polar Secant Stereographic
                 p%typ_str='stere';p%proj4="+proj=stere +lat_0=${ref_lat} +lon_0=${stand_lon} +lat_ts=lat_ts +a=6370000.0 +b=6370000.0 +k_0=1.0"
         else if ( p%typ == 7 ) then     !Equatorial Mercator
-                p%typ_str="merc"; p%proj4="+proj=merc +lat_ts=${truelat1} +a=6370000.0 +b=6370000.0"
+                p%typ_str="merc"; p%proj4="+proj=merc +lat_ts="//trim(rtoa(p%truelat1))//" +a=6370000.0 +b=6370000.0"
         else if ( p%typ == 8 ) then     !Transverse Mercator
-                p%typ_str='ll';   p%proj4="+proj=latlong +a=6370000.0 +b=6370000.0"  
+                print*, "proyección: 8 (Transverse Mercator) no soportada en esta aplicación."; stop
         else if ( p%typ == 9 ) then     !Lambert Azimuthal Equal-Area
-                print*, "proyección: 9 (Lambert Azimuthal Equal-Area) no soportada por esta aplicación."; stop
+                print*, "proyección: 9 (Lambert Azimuthal Equal-Area) no soportada en esta aplicación."; stop
         else
                 print*, "codigo de proyección invalido.", p%typ; stop
         end if
