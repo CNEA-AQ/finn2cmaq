@@ -11,7 +11,7 @@ program finn2cmaq
      character(16)    :: pName     ! nombre de la proyeccion
      character(7)     :: typ_str   ! String  code for projection TYPE
      integer          :: typ       ! Integer code for projection TYPE
-     real             :: ref_lat,ref_lon,truelat1,truelat2,stand_lon,pole_lat,pole_lon
+     real             :: ycent,xcent,alp,bet,gam,pole_lat,pole_lon
      character(125)   :: proj4     ! PROJ4 srs definition.
   end type proj_type
 
@@ -188,8 +188,8 @@ program finn2cmaq
            call check(nf90_put_att(ncid, nf90_global,"P_ALP"    , -50.                 ))!averiguar que poner
            call check(nf90_put_att(ncid, nf90_global,"P_BET"    , -20.                 ))!averiguar que poner
            call check(nf90_put_att(ncid, nf90_global,"P_GAM"    , -65.                 ))!averiguar que poner
-           call check(nf90_put_att(ncid, nf90_global,"XCENT"    , proj%ref_lon         ))
-           call check(nf90_put_att(ncid, nf90_global,"YCENT"    , proj%ref_lat         ))
+           call check(nf90_put_att(ncid, nf90_global,"XCENT"    , proj%xcent         ))
+           call check(nf90_put_att(ncid, nf90_global,"YCENT"    , proj%ycent         ))
            call check(nf90_put_att(ncid, nf90_global,"XORIG"    , grid%xmin            ))
            call check(nf90_put_att(ncid, nf90_global,"YORIG"    , grid%ymin            ))
            call check(nf90_put_att(ncid, nf90_global,"XCELL"    , grid%dx              ))
@@ -299,33 +299,34 @@ contains
         open(2,file=griddescFile, status='old', action='read')                   !GRIDDESC:
            read(2,*) dummyvar;                                                   !' '
            read(2,*) p%pName;                                                    !projName
-           read(2,*) p%typ,p%truelat1,p%truelat2,p%stand_lon,p%ref_lon,p%ref_lat !map_proj truelat1 truelat2 stand_lon ref_lon ref_lat
+           read(2,*) p%typ,p%alp,p%bet,p%gam,p%xcent,p%ycent                     !map_proj truelat1 truelat2 stand_lon ref_lon ycent
+           !read(2,*) p%typ,p%truelat1,p%truelat2,p%stand_lon,p%ref_lon,p%ref_lat !map_proj truelat1 truelat2 stand_lon ref_lon ref_lat
            read(2,*) dummyvar;                                                   !' '
            read(2,*) g%gName;                                                    !gridName
            read(2,*) p%pName,g%xmin,g%ymin,g%dx,g%dy,g%nx,g%ny                   !projName xorig yorig xcell ycell nrows ncols
         close(2)
         
         !Calcular otros parametros:
-        if (p%typ == 1 ) then           !Geographic:
-                p%typ_str='ll';   p%proj4="+proj=latlong +a=6370000.0 +b=6370000.0"  
-        else if ( p%typ == 2 ) then     !Lambert Conformal Conic:
-                p%typ_str='lcc';  p%proj4="+proj=lcc +lat_1="//trim(rtoa(p%truelat1))//" +lat_2="//trim(rtoa(p%truelat2))//" +lon_0="//trim(rtoa(p%stand_lon))//" +lat_0="//trim(rtoa(p%ref_lat))//" +a=6370000.0 +b=6370000.0 +units=m"
-        else if ( p%typ == 3 ) then     !General Mercator
-                p%typ_str="merc"; p%proj4="+proj=merc +lat_ts="//trim(rtoa(p%truelat1))//" +a=6370000.0 +b=6370000.0"
-        else if ( p%typ == 4 ) then     !General tangent Stereografic
-                p%typ_str='stere';p%proj4="+proj=stere +lat_0="//trim(rtoa(p%ref_lat))//" +lon_0="//trim(rtoa(p%stand_lon))//" +lat_ts=lat_ts +a=6370000.0 +b=6370000.0 +k_0=1.0"
-        else if ( p%typ == 5 ) then     !UTM
-                print*, "proyección: 5 (Universal Transverse Mercator) no soportada en esta aplicación."; stop
-        else if ( p%typ == 6 ) then     !Polar Secant Stereographic
-                p%typ_str='stere';p%proj4="+proj=stere +lat_0=${ref_lat} +lon_0=${stand_lon} +lat_ts=lat_ts +a=6370000.0 +b=6370000.0 +k_0=1.0"
-        else if ( p%typ == 7 ) then     !Equatorial Mercator
-                p%typ_str="merc"; p%proj4="+proj=merc +lat_ts="//trim(rtoa(p%truelat1))//" +a=6370000.0 +b=6370000.0"
-        else if ( p%typ == 8 ) then     !Transverse Mercator
-                print*, "proyección: 8 (Transverse Mercator) no soportada en esta aplicación."; stop
-        else if ( p%typ == 9 ) then     !Lambert Azimuthal Equal-Area
-                print*, "proyección: 9 (Lambert Azimuthal Equal-Area) no soportada en esta aplicación."; stop
+             if (p%typ == 1 ) then   !Geographic:
+           p%typ_str='ll';   p%proj4="+proj=latlong +a=6370000.0 +b=6370000.0"  
+        else if ( p%typ == 2 ) then  !Lambert Conformal Conic:
+           p%proj4="+proj=lcc +lat_1="//trim(rtoa(p%alp))//" +lat_2="//trim(rtoa(p%bet))//" +lon_0="//trim(rtoa(p%gam))//" +lat_0="//trim(rtoa(p%ycent))//" +a=6370000.0 +b=6370000.0 +units=m"
+        else if ( p%typ == 3 ) then  !General Mercator
+           p%proj4="+proj=merc +lat_ts="//trim(rtoa(p%alp))//" +a=6370000.0 +b=6370000.0"
+        else if ( p%typ == 4 ) then  !General tangent Stereografic
+           p%proj4="+proj=stere +lat_0="//trim(rtoa(p%ycent))//" +lon_0="//trim(rtoa(p%gam))//" +lat_ts=lat_ts +a=6370000.0 +b=6370000.0 +k_0=1.0"
+        else if ( p%typ == 5 ) then  !UTM
+          print*, "proyección: 5 (Universal Transverse Mercator) no soportada en esta aplicación."; stop
+        else if ( p%typ == 6 ) then  !Polar Secant Stereographic
+           p%proj4="+proj=stere +lat_0=${ycent} +lon_0=${gam} +lat_ts=lat_ts +a=6370000.0 +b=6370000.0 +k_0=1.0"
+        else if ( p%typ == 7 ) then  !Equatorial Mercator
+           p%proj4="+proj=merc +lat_ts="//trim(rtoa(p%alp))//" +a=6370000.0 +b=6370000.0"
+        else if ( p%typ == 8 ) then  !Transverse Mercator
+           print*, "proyección: 8 (Transverse Mercator) no soportada en esta aplicación."; stop
+        else if ( p%typ == 9 ) then  !Lambert Azimuthal Equal-Area
+           print*, "proyección: 9 (Lambert Azimuthal Equal-Area) no soportada en esta aplicación."; stop
         else
-                print*, "codigo de proyección invalido.", p%typ; stop
+           print*, "codigo de proyección invalido.", p%typ; stop
         end if
         
         !Obtener coordenadas del centro de la grilla, min y max:
