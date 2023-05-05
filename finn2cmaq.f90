@@ -318,7 +318,7 @@ contains
     else if ( p%typ == 2 ) then  !Lambert Conformal Conic:
        p%proj4="+proj=lcc +lat_1="//trim(rtoa(p%alp))//" +lat_2="//trim(rtoa(p%bet))//" +lon_0="//trim(rtoa(p%gam))//" +lat_0="//trim(rtoa(p%ycent))//" +a=6370000.0 +b=6370000.0 +units=m"
     else if ( p%typ == 3 ) then  !General Mercator
-       p%proj4="+proj=merc +lat_ts="//trim(rtoa(p%alp))//" +a=6370000.0 +b=6370000.0"
+       print*, "proyección: 3 (General Mercator) no soportada en esta aplicación."; stop
     else if ( p%typ == 4 ) then  !General tangent Stereografic
        p%proj4="+proj=stere +lat_0="//trim(rtoa(p%ycent))//" +lon_0="//trim(rtoa(p%gam))//" +lat_ts=lat_ts +a=6370000.0 +b=6370000.0 +k_0=1.0"
     else if ( p%typ == 5 ) then  !UTM
@@ -326,7 +326,7 @@ contains
     else if ( p%typ == 6 ) then  !Polar Secant Stereographic
        p%proj4="+proj=stere +lat_0=${ycent} +lon_0=${gam} +lat_ts=lat_ts +a=6370000.0 +b=6370000.0 +k_0=1.0"
     else if ( p%typ == 7 ) then  !Equatorial Mercator
-       p%proj4="+proj=merc +lat_ts="//trim(rtoa(p%alp))//" +a=6370000.0 +b=6370000.0"
+       p%proj4="+proj=merc +lat_ts="//trim(rtoa(p%alp))//" +lon_0="//trim(rtoa(p%gam))//" +a=6370000.0 +b=6370000.0"
     else if ( p%typ == 8 ) then  !Transverse Mercator
        print*, "proyección: 8 (Transverse Mercator) no soportada en esta aplicación."; stop
     else if ( p%typ == 9 ) then  !Lambert Azimuthal Equal-Area
