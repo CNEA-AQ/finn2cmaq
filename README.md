@@ -5,7 +5,6 @@
 ## Dependencies
  - Fortran GNU compiler.
  - NetCDF library.
- - GDAL/OGR: for coordinate transformations. (This dependency will be removed in the near future)
 
 ## Get FINN data
 
@@ -44,9 +43,6 @@ Then execute finn2cmaq:
 Please feel free to contact the developer if you have any issues or suggestions.
 
 ## Planned future improvements:
- + [ ] Support more types of projections 
- + [ ] Remove GDAL/OGR dependency
- + [ ] Roboust GRIDDESC reader 
  + [ ] Optional species mapping
  + [ ] Plume rise representation
 

@@ -7,12 +7,16 @@ program finn2cmaq
   INTEGER, PARAMETER :: ascii = selected_char_KIND ("ascii")
   INTEGER, PARAMETER :: ucs4  = selected_char_KIND ('ISO_10646') 
 
+  real, parameter :: R_EARTH = 6370000.
+  real, parameter :: PI = 3.141592653589793
+  real, parameter :: RAD2DEG = 180./PI
+  real, parameter :: DEG2RAD = PI/180.
+
   type proj_type
-     character(16)    :: pName     ! nombre de la proyeccion
-     character(7)     :: typ_str   ! String  code for projection TYPE
-     integer          :: typ       ! Integer code for projection TYPE
-     real             :: ycent,xcent,alp,bet,gam,pole_lat,pole_lon
-     character(125)   :: proj4     ! PROJ4 srs definition.
+     character(16)    :: pName     ! Projection name
+     integer          :: typ       ! Integer code for projection TYPE (2=lcc, 6=stere, 7=merc)
+     real             :: alp,bet,gam,xcent,ycent !proj parameters.
+     real             :: p1,p2,p3,p4 !extra parameters to speed up calculation once p%typ is defined.
   end type proj_type
 
   type grid_type
@@ -73,6 +77,9 @@ program finn2cmaq
 
   !Leo GRIDDESC:
   call read_GRIDDESC(griddesc_file,gridname, proj, grid)    !(!) TO-DO: mejorar esta funcion basado en lo que haga IOAPI
+  print*,grid%xmin, grid%xmax, grid%ymin, grid%ymax
+  print*, grid%latmin,grid%latmax,grid%lonmin,grid%lonmax
+
 
   !Loop over each day
    current_date_s = atoi( date(start_date, "%s") )
@@ -110,25 +117,33 @@ program finn2cmaq
           read(1,'(A)') header                                                  !Aca asumo que FinnFile header es siempre:
           nvars = COUNT((/ (header(i:i) == ',', i=1,len(header)) /)) - 6 + 1    !DAY,TIME,GENVEG,LATI,LONGI,AREA,CO2,CO,...,PM25
 
-          allocate(var_list(nvars))                         !array con nombre de polluts
-          allocate(emis(nvars))                             !array con emisiones de los polluts
-          allocate(var_units(nvars))                        !array con unidades de emisiones
-          allocate(data(grid%nx,grid%ny,1,24,nvars))        !grilla de emisiones
-          allocate(tflag(2,nvars,24))                       !variable tflag
+          allocate(var_list(nvars))                       !array con nombre de polluts
+          allocate(emis(nvars))                           !array con emisiones de los polluts
+          allocate(var_units(nvars))                      !array con unidades de emisiones
+          allocate(data(grid%nx,grid%ny,1,24,nvars))      !grilla de emisiones
+          allocate(tflag(2,nvars,24))                     !variable tflag
           data=0.0
 
           read(header,*) colnames,var_list
-          write(var_list_string,*) var_list                !este es un global attr importante.
+          write(var_list_string,*) var_list               !este es un global attr importante.
+
+          print*,lati,longi,grid%latmin,grid%latmax,grid%lonmin,grid%lonmax
 
           iostat=0
           do while(iostat == 0)  !loop por cada fila de finnFile:
               read(1,*,iostat=iostat) day,time,genveg,lati,longi,area,emis
-           
+                
+              print*,LOGICAL(lati > grid%latmax .or. lati < grid%latmin .or. longi > grid%lonmax .or. longi < grid%lonmin ), lati,longi,grid%latmin,grid%latmax,grid%lonmin,grid%lonmax
               if ( lati > grid%latmax .or. lati < grid%latmin .or. longi > grid%lonmax .or. longi < grid%lonmin ) then
                 continue
               else    
-                call gdalTransform(longi,lati,xi,yi,'epsg:4326',proj%proj4) !transformo lati y longi a proyectada xi, yi
-                
+
+                call ll2xy(proj,longi,lati,xi,yi)  !transformo lati y longi a proyectada xi, yi
+                !call gdalTransform(longi,lati,xi,yi,'epsg:4326',proj%proj4) !transformo lati y longi a proyectada xi, yi
+
+                !print*,"longi,lati:", longi,lati
+                !print*,"xi,y:", xi,yi
+
                 ii=floor((xi-grid%xmin)/(2*grid%xmax)*grid%nx) !calculo posición-X en la grilla
                 ij=floor((yi-grid%ymin)/(2*grid%ymax)*grid%ny) !calculo posición-Y en la grilla
                 
@@ -185,11 +200,11 @@ program finn2cmaq
            call check(nf90_put_att(ncid, nf90_global,"NLAYS"    , 1                    ))!grid%nz              
            call check(nf90_put_att(ncid, nf90_global,"NVARS"    , nvars                ))
            call check(nf90_put_att(ncid, nf90_global,"GDTYP"    , 1                    ))
-           call check(nf90_put_att(ncid, nf90_global,"P_ALP"    , -50.                 ))!averiguar que poner
-           call check(nf90_put_att(ncid, nf90_global,"P_BET"    , -20.                 ))!averiguar que poner
-           call check(nf90_put_att(ncid, nf90_global,"P_GAM"    , -65.                 ))!averiguar que poner
-           call check(nf90_put_att(ncid, nf90_global,"XCENT"    , proj%xcent         ))
-           call check(nf90_put_att(ncid, nf90_global,"YCENT"    , proj%ycent         ))
+           call check(nf90_put_att(ncid, nf90_global,"P_ALP"    , proj%alp             ))                    
+           call check(nf90_put_att(ncid, nf90_global,"P_BET"    , proj%bet             ))                    
+           call check(nf90_put_att(ncid, nf90_global,"P_GAM"    , proj%gam             ))                    
+           call check(nf90_put_att(ncid, nf90_global,"XCENT"    , proj%xcent           ))
+           call check(nf90_put_att(ncid, nf90_global,"YCENT"    , proj%ycent           ))
            call check(nf90_put_att(ncid, nf90_global,"XORIG"    , grid%xmin            ))
            call check(nf90_put_att(ncid, nf90_global,"YORIG"    , grid%ymin            ))
            call check(nf90_put_att(ncid, nf90_global,"XCELL"    , grid%dx              ))
@@ -289,73 +304,187 @@ contains
     write(rtoa, '(F16.3)') r
     rtoa = adjustl(rtoa)
  end function
+
  subroutine read_GRIDDESC(griddescFile,gridName, p, g)
-    implicit none
-    character(200),intent(in) :: griddescFile
-    character(*) ,intent(in)  :: gridName
-    type(proj_type) ,intent(inout) :: p
-    type(grid_type) ,intent(inout) :: g
-    character(20) :: row
-    iostat=0
-    open(unit=1,file=griddescFile,status='old',action='read',access='sequential')
-    do while(iostat == 0)  !loop por cada fila
-       read(1,*,iostat=iostat) row
-       if ( trim(row) == trim(gridname)) then
-         g%gName=row
-         read(1,*) p%pName,g%xmin,g%ymin,g%dx,g%dy,g%nx,g%ny !projName xorig yorig xcell ycell nrows ncols
-         rewind(1)
-       endif
-       if (trim(row) == trim(p%pName)) then
-         read(1,*) p%typ,p%alp,p%bet,p%gam,p%xcent,p%ycent   !map_proj truelat1 truelat2 stand_lon ref_lon ref_lat
-         iostat=1
-       endif
-    enddo
-    close(1);
-    
-    !Calcular otros parametros:
-         if (p%typ == 1 ) then   !Geographic:
-       p%typ_str='ll';   p%proj4="+proj=latlong +a=6370000.0 +b=6370000.0"  
-    else if ( p%typ == 2 ) then  !Lambert Conformal Conic:
-       p%proj4="+proj=lcc +lat_1="//trim(rtoa(p%alp))//" +lat_2="//trim(rtoa(p%bet))//" +lon_0="//trim(rtoa(p%gam))//" +lat_0="//trim(rtoa(p%ycent))//" +a=6370000.0 +b=6370000.0 +units=m"
-    else if ( p%typ == 3 ) then  !General Mercator
-       print*, "proyección: 3 (General Mercator) no soportada en esta aplicación."; stop
-    else if ( p%typ == 4 ) then  !General tangent Stereografic
-       p%proj4="+proj=stere +lat_0="//trim(rtoa(p%ycent))//" +lon_0="//trim(rtoa(p%gam))//" +lat_ts=lat_ts +a=6370000.0 +b=6370000.0 +k_0=1.0"
-    else if ( p%typ == 5 ) then  !UTM
-      print*, "proyección: 5 (Universal Transverse Mercator) no soportada en esta aplicación."; stop
-    else if ( p%typ == 6 ) then  !Polar Secant Stereographic
-       p%proj4="+proj=stere +lat_0=${ycent} +lon_0=${gam} +lat_ts=lat_ts +a=6370000.0 +b=6370000.0 +k_0=1.0"
-    else if ( p%typ == 7 ) then  !Equatorial Mercator
-       p%proj4="+proj=merc +lat_ts="//trim(rtoa(p%alp))//" +lon_0="//trim(rtoa(p%gam))//" +a=6370000.0 +b=6370000.0"
-    else if ( p%typ == 8 ) then  !Transverse Mercator
-       print*, "proyección: 8 (Transverse Mercator) no soportada en esta aplicación."; stop
-    else if ( p%typ == 9 ) then  !Lambert Azimuthal Equal-Area
-       print*, "proyección: 9 (Lambert Azimuthal Equal-Area) no soportada en esta aplicación."; stop
-    else
-       print*, "codigo de proyección invalido.", p%typ; stop
-    end if
-    
+        implicit none
+        character(200),intent(in) :: griddescFile
+        character(*) ,intent(in)  :: gridName
+        type(proj_type), intent(inout) :: p
+        type(grid_type), intent(inout) :: g
+        character(20) :: row
+        !iostat=0
+        open(unit=2,file=griddescFile,status='old',action='read',access='sequential')
+        do while(iostat == 0)  !loop por cada fila
+           read(2,*,iostat=iostat) row
+           if ( trim(row) == trim(gridname)) then
+             g%gName=row
+             read(2,*) p%pName,g%xmin,g%ymin,g%dx,g%dy,g%nx,g%ny !projName xorig yorig xcell ycell nrows ncols
+             rewind(2)
+           endif
+           if (trim(row) == trim(p%pName)) then
+             read(2,*) p%typ,p%alp,p%bet,p%gam,p%xcent,p%ycent   !map_proj truelat1 truelat2 stand_lon ref_lon ref_lat
+             iostat=1
+           endif
+        enddo
+        close(2)
+
+        !Calculate proj parameters used then for coordinate transformations:
+        if ( p%typ == 2 ) then  !lambert conformal conic:        
+            if ( ABS(p%alp - p%bet) > 0.1 ) then  !secant proj case
+               p%p2=     LOG( COS(p%alp           *deg2rad )/ COS(p%bet           *deg2rad)   )                                    
+               p%p2=p%p2/LOG( TAN((45.0+0.5*p%bet)*deg2rad )/ TAN((45.0+0.5*p%alp)*deg2rad)   ) !n
+             else                                 !tangent proj case
+               p%p2=SIN(p%alp*deg2rad) !n
+            endif
+            p%p3=R_EARTH*(COS(p%alp*deg2rad)*TAN((45+0.5*p%alp)*deg2rad)**p%p2)*(1/p%p2)  !F
+            p%p1=p%p3/(TAN((45+0.5*p%ycent)*deg2rad)**p%p2)                   !rho0 R_EARTH*
+            !print*,p%p1,p%p2,p%p3
+
+         else if ( p%typ == 6 ) then  !polar secant stereographic
+            print*, "Todavia no desarrollado soporte para proyeccion polar stereografica:",p%typ,"."; stop
+
+         else if ( p%typ == 7 ) then  !equatorial mercator
+            p%p1=COS(p%alp) !k0
+        else
+            print*, "codigo de proyección invalido:",p%typ,"."; stop
+        end if
+
     !Obtener coordenadas del centro de la grilla, min y max:
-    g%xc=0.0;g%yc=0.0; g%xmax=(g%xmin)*(-1); g%ymax=(g%ymin)*(-1)
+    g%xc=0.0;g%yc=0.0;g%xmax=g%xmin+g%dx*g%nx; g%ymax=g%ymin+g%dy*g%ny
 
     !transformo boundaries a latlon
-    call gdalTransform(g%xmin,g%ymin,g%lonmin,g%latmin,p%proj4,'epsg:4326')
-    call gdalTransform(g%xmax,g%ymax,g%lonmax,g%latmax,p%proj4,'epsg:4326')
-
+    call xy2ll(p,g%xmin,g%ymin,g%lonmin,g%latmin)
+    call xy2ll(p,g%xmax,g%ymax,g%lonmax,g%latmax)
+    !call gdalTransform(g%xmin,g%ymin,g%lonmin,g%latmin,p%proj4,'epsg:4326')
+    !call gdalTransform(g%xmax,g%ymax,g%lonmax,g%latmax,p%proj4,'epsg:4326')
+    !print*,g%xmin, g%xmax, g%ymin, g%ymax
+    !print*, g%latmin,g%latmax,g%lonmin,g%lonmax
+    !call ll2xy(proj,g%lonmin,g%latmin,g%xmin,g%ymin)
+    !call ll2xy(proj,g%lonmax,g%latmax,g%xmax,g%ymax)
+    !print*,g%xmin, g%xmax, g%ymin, g%ymax
  end subroutine
 
- subroutine gdalTransform(x1,y1,x2,y2,srs1,srs2)
-        implicit none
-        real, intent(in)   :: x1,y1
-        real, intent(inout):: x2,y2
-        character(*)   :: srs1,srs2
-        character(10)  :: ellipsoidh
-        character(256) :: command
-        command="echo "//rtoa(x1)//" "//rtoa(y1)//" | gdaltransform -s_srs '"//trim(srs1)//"' -t_srs '"//trim(srs2)//"'  > tmp_gdal.txt";
-        call system(trim(command))
-        !print*,trim(command)
-        open(9, file='tmp_gdal.txt', status='old',action='read'); read(9,*, iostat=status) x2, y2, ellipsoidh;  close(9)
-        call system('rm tmp_gdal.txt')
+ !COORDINATE TRANSFORMATION FUNCTIONS:======================================
+ subroutine xy2ll(p,x,y,lon,lat)
+       implicit none                            
+       type(proj_type) ,intent(in) :: p
+       real, intent(in)   :: x,y
+       real, intent(inout):: lon,lat
+ 
+     if       ( p%typ == 2 ) then  !lambert conformal conic:
+        call xy2ll_lc(p,x,y,lat,lon)
+      !else if ( p%typ == 6 ) then  !polar secant stereographic
+      !  call xy2ll_ps(p,x,y,lat,lon)
+      else if ( p%typ == 7 ) then  !equatorial mercator
+        call xy2ll_merc(p,x,y,lat,lon)
+     else
+         print*, "codigo de proyección invalido:",p%typ,"."; stop
+     end if
+
  end subroutine
+ subroutine ll2xy(p,lon,lat,x,y)
+       implicit none                            
+       type(proj_type) ,intent(in) :: p
+       real, intent(in):: lon,lat
+       real, intent(inout)   :: x,y
+ 
+       if       ( p%typ == 2 ) then  !Lambert Conformal Conic:
+          call ll2xy_lc(p,lat,lon,x,y)
+        !else if ( p%typ == 6 ) then  !Polar Secant Stereographic
+        !  call ll2xy_ps(p,lat,lon,x,y)
+        else if ( p%typ == 7 ) then  !Equatorial Mercator
+          call ll2xy_merc(p,lat,lon,x,y)
+       else
+           print*, "codigo de proyección invalido:",p%typ,"."; stop
+       end if                             
+ end subroutine
+ !--------------------------------------------------------------------------
+ !LAMBERT CONFORMAL CONIC:
+ subroutine xy2ll_lc(p,x,y,lon,lat)
+   implicit none                            
+   type(proj_type) ,intent(in) :: p
+   real, intent(in)   :: x,y
+   real, intent(inout):: lon,lat
+
+   real :: n,F,rho0,rho,theta
+   
+   rho0=p%p1
+   n=p%p2
+   F=p%p3
+   
+   theta=ATAN(x/(rho0-y))*rad2deg
+   rho=SIGN(1.0,n) * SQRT( x*x + (rho0-y)*(rho0-y))
+   
+   lon=p%gam+theta/n
+   lat=2.0 * ATAN( (F/rho)**(1/n) )*rad2deg - 90.0 
+ end subroutine
+ subroutine ll2xy_lc(p,lon,lat,x,y)
+   implicit none                            
+   type(proj_type) ,intent(in) :: p
+   real, intent(in)      :: lon,lat
+   real, intent(inout)   :: x,y
+   real :: n,F,rho0,rho,dlon
+
+   !interm params:
+   rho0=p%p1
+   n=p%p2
+   F=p%p3
+
+   rho=F*(TAN((45.0 - 0.5*lat)*deg2rad)**n)  !rho0 R_EARTH*
+   dlon=lon-p%gam
+   !
+   x=     rho*SIN(n*dlon*deg2rad )
+   y=rho0-rho*COS(n*dlon*deg2rad )
+ end subroutine
+ !--------------------------------------------------------------------------
+ !MERCATOR                
+ subroutine xy2ll_merc(p,x,y,lon,lat)
+   implicit none                            
+   type(proj_type) ,intent(in) :: p
+   real, intent(in)   :: x,y
+   real, intent(inout):: lon,lat
+   real :: k0R,phi
+ 
+   k0R=p%p1*R_EARTH
+   phi=y/k0R      
+   
+   lon=x/k0R
+   lat=(90.0 - 2* ATAN(EXP(-phi)))                                                 
+ end subroutine
+ subroutine ll2xy_merc(p,lon,lat,x,y)
+   implicit none                            
+   type(proj_type) ,intent(in) :: p
+   real, intent(in)      :: lon,lat
+   real, intent(inout)   :: x,y
+   real :: k0,lon0
+
+   k0=p%p1
+   lon0=p%gam
+
+   x=k0*R_EARTH*(lon-lon0)
+   y=k0*R_EARTH*LOG(TAN((90.0+0.5*lat)*deg2rad))
+ end subroutine
+!--------------------------------------------------------------------------
+!!POLAR STEREOGRAPHIC     
+!subroutine xy2ll_ps(p,x,y,lon,lat)
+!      implicit none                            
+!      type(proj_type) ,intent(in) :: p
+!      real, intent(in)   :: x,y
+!      real, intent(inout):: lon,lat
+!
+!      print*,"no hago nada.."
+!end subroutine
+!subroutine ll2xy_ps(p,lon,lat,x,y)
+!      implicit none                            
+!      type(proj_type) ,intent(in) :: p
+!      real, intent(in)      :: lon,lat
+!      real, intent(inout)   :: x,y
+!                                                        
+!      !northing
+!      print*,"no hago nada.."
+!      
+!      
+!end subroutine
+!!END COORDINATE TRANFORMATION FUNCTIONS====================================
 
 end program finn2cmaq
