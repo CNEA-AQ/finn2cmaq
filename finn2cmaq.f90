@@ -68,7 +68,6 @@ program finn2cmaq
   call date_and_time(values=todays_date)       !fecha de hoy.
 
   !Leo namelist:
-  !open(7, file='parameters'); read(7,parameters); close(7) !leo namelist
   read(*,nml=control, iostat=iostat)
   if( iostat /= 0 ) then
     write(*,*) 'finn2cmaq: failed to read namelist; error = ',iostat
@@ -77,8 +76,8 @@ program finn2cmaq
 
   !Leo GRIDDESC:
   call read_GRIDDESC(griddesc_file,gridname, proj, grid)    !(!) TO-DO: mejorar esta funcion basado en lo que haga IOAPI
-  print*,grid%xmin, grid%xmax, grid%ymin, grid%ymax
-  print*, grid%latmin,grid%latmax,grid%lonmin,grid%lonmax
+  print*,grid%xmin,grid%xmax,grid%lonmin,grid%lonmax
+  print*,grid%ymin,grid%ymax,grid%latmin,grid%latmax
 
 
   !Loop over each day
@@ -127,22 +126,18 @@ program finn2cmaq
           read(header,*) colnames,var_list
           write(var_list_string,*) var_list               !este es un global attr importante.
 
-          print*,lati,longi,grid%latmin,grid%latmax,grid%lonmin,grid%lonmax
-
+          !print*,lati,longi,grid%latmin,grid%latmax,grid%lonmin,grid%lonmax
           iostat=0
           do while(iostat == 0)  !loop por cada fila de finnFile:
               read(1,*,iostat=iostat) day,time,genveg,lati,longi,area,emis
                 
-              print*,LOGICAL(lati > grid%latmax .or. lati < grid%latmin .or. longi > grid%lonmax .or. longi < grid%lonmin ), lati,longi,grid%latmin,grid%latmax,grid%lonmin,grid%lonmax
               if ( lati > grid%latmax .or. lati < grid%latmin .or. longi > grid%lonmax .or. longi < grid%lonmin ) then
                 continue
               else    
 
                 call ll2xy(proj,longi,lati,xi,yi)  !transformo lati y longi a proyectada xi, yi
-                !call gdalTransform(longi,lati,xi,yi,'epsg:4326',proj%proj4) !transformo lati y longi a proyectada xi, yi
-
-                !print*,"longi,lati:", longi,lati
-                !print*,"xi,y:", xi,yi
+                print*,"longi,lati:", longi,lati
+                print*,"xi,y:", xi,yi
 
                 ii=floor((xi-grid%xmin)/(2*grid%xmax)*grid%nx) !calculo posición-X en la grilla
                 ij=floor((yi-grid%ymin)/(2*grid%ymax)*grid%ny) !calculo posición-Y en la grilla
@@ -344,7 +339,7 @@ contains
             print*, "Todavia no desarrollado soporte para proyeccion polar stereografica:",p%typ,"."; stop
 
          else if ( p%typ == 7 ) then  !equatorial mercator
-            p%p1=COS(p%alp) !k0
+            p%p1=COS(p%alp*deg2rad) !k0
         else
             print*, "codigo de proyección invalido:",p%typ,"."; stop
         end if
@@ -357,11 +352,11 @@ contains
     call xy2ll(p,g%xmax,g%ymax,g%lonmax,g%latmax)
     !call gdalTransform(g%xmin,g%ymin,g%lonmin,g%latmin,p%proj4,'epsg:4326')
     !call gdalTransform(g%xmax,g%ymax,g%lonmax,g%latmax,p%proj4,'epsg:4326')
-    !print*,g%xmin, g%xmax, g%ymin, g%ymax
-    !print*, g%latmin,g%latmax,g%lonmin,g%lonmax
-    !call ll2xy(proj,g%lonmin,g%latmin,g%xmin,g%ymin)
-    !call ll2xy(proj,g%lonmax,g%latmax,g%xmax,g%ymax)
-    !print*,g%xmin, g%xmax, g%ymin, g%ymax
+    print*,g%xmin, g%xmax, g%ymin, g%ymax
+    print*, g%latmin,g%latmax,g%lonmin,g%lonmax
+    call ll2xy(proj,g%lonmin,g%latmin,g%xmin,g%ymin)
+    call ll2xy(proj,g%lonmax,g%latmax,g%xmax,g%ymax)
+    print*,g%xmin, g%xmax, g%ymin, g%ymax
  end subroutine
 
  !COORDINATE TRANSFORMATION FUNCTIONS:======================================
@@ -445,11 +440,11 @@ contains
    real, intent(inout):: lon,lat
    real :: k0R,phi
  
-   k0R=p%p1*R_EARTH
-   phi=y/k0R      
+   k0R=p%p1*R_EARTH     !es una longitud
+   phi=y/k0R            !es un angulo
    
-   lon=x/k0R
-   lat=(90.0 - 2* ATAN(EXP(-phi)))                                                 
+   lon=x/k0R*rad2deg-p%gam
+   lat=90.0-2*ATAN( EXP(-phi) )*rad2deg
  end subroutine
  subroutine ll2xy_merc(p,lon,lat,x,y)
    implicit none                            
@@ -458,11 +453,11 @@ contains
    real, intent(inout)   :: x,y
    real :: k0,lon0
 
-   k0=p%p1
-   lon0=p%gam
+   k0=p%p1              !adminesional
+   lon0=p%gam           !es un angulo
 
-   x=k0*R_EARTH*(lon-lon0)
-   y=k0*R_EARTH*LOG(TAN((90.0+0.5*lat)*deg2rad))
+   x=k0*R_EARTH*(lon*deg2rad-lon0*deg2rad)
+   y=k0*R_EARTH*LOG(TAN((45.0+0.5*lat)*deg2rad))
  end subroutine
 !--------------------------------------------------------------------------
 !!POLAR STEREOGRAPHIC     
