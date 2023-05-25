@@ -317,14 +317,8 @@ contains
 
     !Calculate proj parameters used then for coordinate transformations:
     call set_additional_proj_params(p)
+    call set_additional_grid_params(p,g)
 
-    !Obtener coordenadas del centro de la grilla, min y max:
-    g%xc=0.0;g%yc=0.0;g%xmax=g%xmin+g%dx*g%nx; g%ymax=g%ymin+g%dy*g%ny
-
-    !transformo boundaries a latlon
-    call xy2ll(p,g%xmin,g%ymin,g%lonmin,g%latmin)
-    call xy2ll(p,g%xmax,g%ymax,g%lonmax,g%latmax)
-    
     !!debug:-------------------------------
     !print*,"Test: xy -> ll ..."
     !print*,"g%xmin, g%xmax, g%ymin, g%ymax      ",g%xmin, g%xmax, g%ymin, g%ymax
@@ -395,6 +389,42 @@ contains
         print*, "codigo de proyección invalido:",p%typ,"."; stop
     end if
  end subroutine
+ subroutine set_additional_grid_params(p,g)
+   implicit none
+   type(proj_type) ,intent(inout) :: p
+   type(grid_type) ,intent(inout) :: g
+   real :: latmin,lonmin,latmax,lonmax
+   !Obtener coordenadas del centro de la grilla, min y max:
+   g%xc=0.0;g%yc=0.0;g%xmax=g%xmin+g%dx*g%nx; g%ymax=g%ymin+g%dy*g%ny
+
+   !calculo minimos y maximos de latlon
+   !   (ojo! Dado que son transf no-lineales no corresponden necesariamente a los vertices)
+   call xy2ll(p,g%xmin,g%ymin,g%lonmin,g%latmin)       !lower-left
+   call xy2ll(p,g%xmax,g%ymax,g%lonmax,g%latmax)       !upper-right
+
+   !latmin
+   call xy2ll(p,g%xmin+g%dx*g%nx*0.5, g%ymin,lonmin,latmin)
+   g%latmin=min(g%latmin,latmin)
+   !latmax
+   call xy2ll(p,g%xmax-g%dx*g%nx*0.5,g%ymax ,lonmax,latmax)
+   g%latmax=max(g%latmax,latmax)
+
+   !lonmin
+   call xy2ll(p,g%xmin,g%ymin+g%dy*g%ny*0.5,lonmin,latmin)
+   g%lonmin=min(g%lonmin,lonmin)
+   !
+   call xy2ll(p,g%xmin,g%ymax              ,lonmin,latmin)
+   g%lonmin=min(g%lonmin,lonmin)
+
+   !lonmax
+   call xy2ll(p,g%xmax,g%ymax-g%dy*g%ny*0.5,lonmax,latmax)
+   g%lonmax=max(g%lonmax,lonmax)
+   !
+   call xy2ll(p,g%xmax,g%ymin              ,lonmax,latmax)
+   g%lonmax=max(g%lonmax,lonmax)
+
+ end subroutine
+
  !--------------------------------------------------------------------------
  !LAMBERT CONFORMAL CONIC:
  subroutine xy2ll_lcc(p,x,y,lon,lat)
