@@ -1,12 +1,12 @@
 &control    
 
-start_date="2019-01-01",   			!%Y-%m-%d (YYYY-MM-DD)
-  end_date="2019-01-01",   			!%Y-%m-%d (YYYY-MM-DD)
+start_date="2021-12-01",   			!%Y-%m-%d (YYYY-MM-DD)
+  end_date="2021-12-03",   			!%Y-%m-%d (YYYY-MM-DD)
 
 finn_data_directory = './finn_data/'		!path to directory with data
 
-griddesc_file="./GRIDDESC_example", 	!path to GRIDDESC
-gridname= "LCC_TAN_TEST", !"LCC_SEC_TEST", !'MERC_TEST',! 
+griddesc_file="./GRIDDESC_example", 	   !path to GRIDDESC
+gridname= 'SILAM_ARG', !"LCC_TAN_TEST", !"LCC_SEC_TEST", !'MERC_TEST',! 
 
 chemistry="GEOSchem",				!"GEOSchem" / "MOZ4" / "SAPRC99"
 

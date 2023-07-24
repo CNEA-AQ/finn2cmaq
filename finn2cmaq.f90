@@ -33,8 +33,9 @@ program finn2cmaq
   integer :: status,iostat
   integer :: ncid,tstep_dim_id,date_time_dim_id,col_dim_id,row_dim_id,lay_dim_id,var_dim_id,pollut_var_id
   logical :: file_exists
-  
-  !character(256) :: command
+#ifdef WGET
+  character(256) :: command
+#endif 
   character(256) :: griddesc_file,finn_data_directory,finnFile,outFile
   character(16)  :: gridname, chemistry, pollut
   character(16), allocatable :: var_list(:), var_units(:) !lista de polluts
@@ -62,7 +63,10 @@ program finn2cmaq
   character(3) :: DDD
   character(2) :: MM,HH!,DD 
   integer      :: todays_date(8)
-  
+
+
+
+
   namelist /control/ chemistry,start_date,end_date,finn_data_directory,griddesc_file,gridname,diurnal_cycle
   
   call date_and_time(values=todays_date)       !fecha de hoy.
@@ -91,20 +95,21 @@ program finn2cmaq
     
     finnFile=trim(finn_data_directory)//"GLOB_"//trim(chemistry)//"_"//YYYY//DDD//".txt"
     inquire(file=finnFile, exist=file_exists)
-    
-    !Descargo finn file:
-    !if ( .not. file_exists) then
-    !  if ( atoi(YYYY) < todays_date(1)-2 ) then
-    !     command="wget https://www.acom.ucar.edu/acresp/MODELING/finn_emis_txt/"//YYYY//"/GLOB_"//trim(chemistry)//"_"//YYYY//DDD//".txt.gz -P finn_data/"
-    !     call system(command)
-    !  else
-    !     command="wget https://www.acom.ucar.edu/acresp/MODELING/finn_emis_txt/GLOB_"//trim(chemistry)//"_"//YYYY//DDD//".txt.gz -P finn_data/"
-    !     call system(command)
-    !  end if
-    !  call system ("gzip -d finn_data/GLOB_"//trim(chemistry)//"_"//YYYY//DDD//".txt.gz")
-    !  inquire(file=finnFile, exist=file_exists)
-    !end if
 
+#ifdef WGET   
+    !Descargo finn file:
+    if ( .not. file_exists) then
+      if ( atoi(YYYY) <= todays_date(1)-2 ) then
+         command="wget https://www.acom.ucar.edu/acresp/MODELING/finn_emis_txt/"//YYYY//"/GLOB_"//trim(chemistry)//"_"//YYYY//DDD//".txt.gz -P finn_data/"
+         call system(command)
+      else
+         command="wget https://www.acom.ucar.edu/acresp/MODELING/finn_emis_txt/GLOB_"//trim(chemistry)//"_"//YYYY//DDD//".txt.gz -P finn_data/"
+         call system(command)
+      end if
+      call system ("gzip -d finn_data/GLOB_"//trim(chemistry)//"_"//YYYY//DDD//".txt.gz")
+      inquire(file=finnFile, exist=file_exists)
+    end if
+#endif
     if ( file_exists ) then
        
        print*," Reading Finn file: ",trim(finnFile)
@@ -131,10 +136,8 @@ program finn2cmaq
                 continue
               else    
                 call ll2xy(proj,longi,lati,xi,yi)  !transformo lati y longi a proyectada xi, yi
-                !print*,"longi,lati:", longi,lati;print*,"xi,y:", xi,yi
                 ii=floor((xi-grid%xmin)/(grid%xmax-grid%xmin)*grid%nx) !calculo posición-X en la grilla
                 ij=floor((yi-grid%ymin)/(grid%ymax-grid%ymin)*grid%ny) !calculo posición-Y en la grilla
-                
                 do k=1,nvars
                         pollut=var_list(k)
                         if ( trim(pollut) == "OC" .or. trim(pollut)  == "BC" .or.  trim(pollut) == "PM25" .or. trim(pollut) == "PM10" ) then
@@ -317,7 +320,15 @@ contains
 
     !Calculate proj parameters used then for coordinate transformations:
     call set_additional_proj_params(p)
-    call set_additional_grid_params(p,g)
+    if ( p%typ ==1 ) then
+            g%lonmin=g%xmin                ;g%latmin=g%ymin
+            g%lonmax=g%lonmin+g%nx*g%dx    ;g%latmax=g%latmin+g%ny*g%dy
+            g%xmax=g%lonmax                ;g%ymax=g%latmax
+            p%xcent=g%lonmin+g%nx*g%dx*0.5 ;p%ycent= g%latmin+g%ny*g%dy*0.5
+            g%xc= p%xcent                  ;g%yc= p%ycent
+    else
+            call set_additional_grid_params(p,g)
+    endif
 
     !!debug:-------------------------------
     !print*,"Test: xy -> ll ..."
@@ -329,6 +340,7 @@ contains
     !print*,"g%lonmin,g%lonmax,g%latmin,g%latmax ",g%lonmin,g%lonmax,g%latmin,g%latmax
     !print*,"g%xmin, g%xmax, g%ymin, g%ymax      ",g%xmin, g%xmax, g%ymin, g%ymax
     !!------------------------------------- 
+
  end subroutine
 
  !COORDINATE TRANSFORMATION FUNCTIONS:======================================
@@ -338,7 +350,10 @@ contains
      real, intent(in)   :: x,y
      real, intent(inout):: lon,lat
  
-     if      ( p%typ == 2 ) then  !Lambert Conformal Conic:
+     if      ( p%typ == 1 ) then  !latlon (-90<X<90; -180>Y<180)
+          lon=x
+          lat=y
+     else if ( p%typ == 2 ) then  !Lambert Conformal Conic:
         call xy2ll_lcc(p,x,y,lon,lat)
      else if ( p%typ == 6 ) then  !polar secant stereographic
         call xy2ll_stere(p,x,y,lat,lon)
@@ -354,7 +369,10 @@ contains
        real, intent(in):: lon,lat
        real, intent(inout)   :: x,y
  
-       if      ( p%typ == 2 ) then  !Lambert Conformal Conic:
+       if      ( p%typ == 1 ) then  !latlon (-90<X<90; -180>Y<180)
+          x=lon 
+          y=lat
+       else if ( p%typ == 2 ) then  !Lambert Conformal Conic:
           call ll2xy_lcc(p,lon,lat,x,y)
        else if ( p%typ == 6 ) then  !Polar Secant Stereographic
           call ll2xy_stere(p,lon,lat,x,y)
@@ -369,7 +387,9 @@ contains
     implicit none                            
     type(proj_type) ,intent(inout) :: p
  
-    if ( p%typ == 2 ) then       !lambert conformal conic:        
+    if      ( p%typ == 1 ) then       !latlon        
+          continue
+    else if ( p%typ == 2 ) then       !lambert conformal conic:        
        if ( ABS(p%alp - p%bet) > 0.1 ) then  !secant proj case
           p%p2=     LOG( COS(p%alp           *deg2rad )/ COS(p%bet           *deg2rad)   )                                    
           p%p2=p%p2/LOG( TAN((45.0+0.5*p%bet)*deg2rad )/ TAN((45.0+0.5*p%alp)*deg2rad)   ) !n
@@ -422,7 +442,6 @@ contains
    !
    call xy2ll(p,g%xmax,g%ymin              ,lonmax,latmax)
    g%lonmax=max(g%lonmax,lonmax)
-
  end subroutine
 
  !--------------------------------------------------------------------------

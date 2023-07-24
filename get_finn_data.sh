@@ -2,8 +2,8 @@
 export LC_NUMERIC="en_US.UTF-8"
 #------------------------------------------------
 #Input-Data:
-start_date="2019-01-01"	#"%Y-%m-%d %H"
-  end_date="2019-01-01"	#"%Y-%m-%d %H"
+start_date="2021-12-01"	#"%Y-%m-%d %H"
+  end_date="2021-12-03"	#"%Y-%m-%d %H"
 
 chemistry="GEOSchem" #GEOSchem # MOZ4 # SAPRC99
 
@@ -30,7 +30,7 @@ do
 	#Get FINN data:
 	 if [ ! -f $finn_data_directory/GLOB_${chemistry}_$YYYY$DDD.txt ]
 	 then
-	 	if [ $YYYY -lt $(($thisYear-2)) ]	#los años viejos los tienen en carpetas.
+	 	if [ $YYYY -le $(($thisYear-2)) ]	#los años viejos los tienen en carpetas.
 	 	then
 	 	       wget "https://www.acom.ucar.edu/acresp/MODELING/finn_emis_txt/$YYYY/GLOB_${chemistry}_$YYYY$DDD.txt.gz" -P finn_data/
 	 	else
