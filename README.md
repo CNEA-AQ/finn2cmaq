@@ -26,15 +26,21 @@ Edit the 'example.inp' that contains the following variables:
 
 ```
 &control
-  start_date="2019-01-01",       		!%Y-%m-%d (YYYY-MM-DD)
-    end_date="2019-01-01",       		!%Y-%m-%d (YYYY-MM-DD)
-  finn_data_directory = './finn_data/'		!path to finn files directory
-  griddesc_path="./GRIDDESC",   		!path to the GRIDDESC file
-  chemistry="GEOSchem",
-  diurnal_cycle=0.0043,0.0043,0.0043,0.0043,0.0043,0.0043,0.0043,0.0043,0.0043,0.0300,0.0600,0.1000,0.1400,0.1700,0.1400,0.1200,0.0900,0.0600,0.0300,0.0043,0.0043,0.0043,0.0043,0.0043
+
+start_date="2019-01-01",                        !%Y-%m-%d (YYYY-MM-DD)
+  end_date="2019-01-01",                        !%Y-%m-%d (YYYY-MM-DD)
+
+finn_data_directory = './finn_data/'            !path to directory with data
+
+griddesc_file="./GRIDDESC",                     !path to GRIDDESC
+gridname= "LCC_TAN_TEST",!"LCC_SEC_TEST", !'MERC_TEST',!
+
+chemistry="GEOSchem",                           !"GEOSchem" / "MOZ4" / "SAPRC99"
+
+diurnal_cycle=0.0043,0.0043,0.0043,0.0043,0.0043,0.0043,0.0043,0.0043,0.0043,0.0300,0.0600,0.1000,0.1400,0.1700,0.1400,0.1200,0.0900,0.0600,0.0300,0.0043,0.0043,0.0043,0.0043,0.0043
 /
 ```
-Note that the start_date, end_date, finn_data_directory, and griddesc_path variables must be adjusted to match the appropriate values for your system.
+Note that the variables must be adjusted to match the appropriate values for your system.
 
 Then execute finn2cmaq:
 
